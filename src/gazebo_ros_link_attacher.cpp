@@ -178,7 +178,7 @@ namespace gazebo
     j.joint->SetLowStop(0, 0);
     ROS_DEBUG_STREAM("Init");
     j.joint->Init();
-    ROS_INFO_STREAM("Attach finished.");#endif
+    ROS_INFO_STREAM("Attach finished.");
 #endif
 
     return true;
