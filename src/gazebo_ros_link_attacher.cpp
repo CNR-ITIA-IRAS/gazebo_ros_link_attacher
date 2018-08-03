@@ -1,9 +1,14 @@
 #include <gazebo/common/Plugin.hh>
+
 #include <ros/ros.h>
 #include "gazebo_ros_link_attacher.h"
 #include "gazebo_ros_link_attacher/Attach.h"
 #include "gazebo_ros_link_attacher/AttachRequest.h"
 #include "gazebo_ros_link_attacher/AttachResponse.h"
+
+#if ROS_VERSION_MINIMUM(1,14,2)
+#include <ignition/math/Pose3.hh>
+#endif
 
 namespace gazebo
 {
@@ -33,7 +38,12 @@ namespace gazebo
     }
     
     this->world = _world;
-    this->physics = this->world->GetPhysicsEngine();
+#if ROS_VERSION_MINIMUM(1,14,2)
+    this->physics = this->world->Physics();
+#else
+		this->physics = this->world->GetPhysicsEngine();
+#endif
+		
     this->attach_service_ = this->nh_.advertiseService("attach", &GazeboRosLinkAttacher::attach_callback, this);
     ROS_INFO_STREAM("Attach service at: " << this->nh_.resolveName("attach"));
     this->detach_service_ = this->nh_.advertiseService("detach", &GazeboRosLinkAttacher::detach_callback, this);
@@ -63,13 +73,21 @@ namespace gazebo
     j.model2 = model2;
     j.link2 = link2;
     ROS_DEBUG_STREAM("Getting BasePtr of " << model1);
+#if ROS_VERSION_MINIMUM(1,14,2)
+    physics::BasePtr b1 = this->world->BaseByName(model1);
+#else
     physics::BasePtr b1 = this->world->GetByName(model1);
+#endif
     if (b1 == NULL){
       ROS_ERROR_STREAM(model1 << " model was not found");
       return false;
     }
     ROS_DEBUG_STREAM("Getting BasePtr of " << model2);
-    physics::BasePtr b2 = this->world->GetByName(model2);
+#if ROS_VERSION_MINIMUM(1,14,2)
+    physics::BasePtr b2 = this->world->BaseByName(model2);
+#else
+		physics::BasePtr b2 = this->world->GetByName(model2);
+#endif
     if (b2 == NULL){
       ROS_ERROR_STREAM(model2 << " model was not found");
       return false;
@@ -91,7 +109,13 @@ namespace gazebo
         ROS_ERROR_STREAM("link1 inertia is NULL!");
     }
     else
-        ROS_DEBUG_STREAM("link1 inertia is not NULL, for example, mass is: " << l1->GetInertial()->GetMass());
+		{
+			#if ROS_VERSION_MINIMUM(1,14,2)
+        ROS_DEBUG_STREAM("link1 inertia is not NULL, for example, mass is: " << l1->GetInertial()->Mass());
+			#else
+				  ROS_DEBUG_STREAM("link1 inertia is not NULL, for example, mass is: " << l1->GetInertial()->GetMass());
+			#endif
+		}
     j.l1 = l1;
     ROS_DEBUG_STREAM("Getting link: '" << link2 << "' from model: '" << model2 << "'");
     physics::LinkPtr l2 = m2->GetLink(link2);
@@ -103,11 +127,17 @@ namespace gazebo
         ROS_ERROR_STREAM("link2 inertia is NULL!");
     }
     else
-        ROS_DEBUG_STREAM("link2 inertia is not NULL, for example, mass is: " << l2->GetInertial()->GetMass());
+		{
+#if ROS_VERSION_MINIMUM(1,14,2)
+        ROS_DEBUG_STREAM("link2 inertia is not NULL, for example, mass is: " << l2->GetInertial()->Mass());
+#else
+				ROS_DEBUG_STREAM("link2 inertia is not NULL, for example, mass is: " << l2->GetInertial()->GetMass());
+#endif
+		}
     j.l2 = l2;
 
-    ROS_DEBUG_STREAM("Links are: "  << l1->GetName() << " and " << l2->GetName());
 
+    ROS_DEBUG_STREAM("Links are: "  << l1->GetName() << " and " << l2->GetName());
     ROS_DEBUG_STREAM("Creating revolute joint on model: '" << model1 << "'");
     j.joint = this->physics->CreateJoint("revolute", m1);
     this->joints.push_back(j);
@@ -115,7 +145,7 @@ namespace gazebo
     ROS_DEBUG_STREAM("Attach");
     j.joint->Attach(l1, l2);
     ROS_DEBUG_STREAM("Loading links");
-    j.joint->Load(l1, l2, math::Pose());
+    j.joint->Load(l1, l2, ignition::math::Pose3d());
     ROS_DEBUG_STREAM("SetModel");
     j.joint->SetModel(m2);
     /*
@@ -131,14 +161,25 @@ namespace gazebo
      failed in static void gazebo::physics::ODELink::MoveCallback(dBodyID):
      /tmp/buildd/gazebo2-2.2.3/gazebo/physics/ode/ODELink.cc(183): Inertial pointer is NULL
      */
-
-    ROS_DEBUG_STREAM("SetHightstop");
+		
+		
+#if ROS_VERSION_MINIMUM(1,14,2)
+		ROS_DEBUG_STREAM("SetHightstop");
+		j.joint->SetParam("hi_stop",0,0);
+		ROS_DEBUG_STREAM("SetLowStop");
+    j.joint->SetParam("lo_stop",0,0);
+    ROS_DEBUG_STREAM("Init");
+    j.joint->Init();
+    ROS_INFO_STREAM("Attach finished.");
+#else
+		ROS_DEBUG_STREAM("SetHightstop");
     j.joint->SetHighStop(0, 0);
     ROS_DEBUG_STREAM("SetLowStop");
     j.joint->SetLowStop(0, 0);
     ROS_DEBUG_STREAM("Init");
     j.joint->Init();
-    ROS_INFO_STREAM("Attach finished.");
+    ROS_INFO_STREAM("Attach finished.");#endif
+#endif
 
     return true;
   }
